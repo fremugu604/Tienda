@@ -66,7 +66,7 @@ S.c.forEach(m=>{if(m.ts>since){if(m.type==='ingreso')ing+=m.amt;else egr+=m.amt}
 return{since,base,cs,ing,egr,exp:base+cs+ing-egr,first:!l}}
 
 function vRes(){const s=st(),low=S.p.filter(p=>p.stock<=2);
-return `<h1>Resumen</h1><div class="grid">
+return rem()+`<h1>Resumen</h1><div class="grid">
 <div class="card"><div class="k">Inventario a costo</div><div class="v">${f(s.c)}</div></div>
 <div class="card"><div class="k">Inventario a precio venta</div><div class="v">${f(s.v)}</div></div>
 <div class="card"><div class="k">Ganancia potencial</div><div class="v g">${f(s.v-s.c)}</div></div>
@@ -121,10 +121,25 @@ function close_(){if(!$('cn').value)return toast('Escribe el efectivo contado');
 S.k.push({ts:Date.now(),exp:c.exp,counted:n,diff:n-c.exp});save();render();toast(n===c.exp?'La caja cuadra':'Hay diferencia: '+f(n-c.exp))}
 function mAdd(){const a=num('ma');if(a<=0)return toast('Escribe el monto');S.c.push({ts:Date.now(),type:$('mt').value,amt:a,note:$('mn').value.trim()});save();render();toast('Agregado')}
 
-function vInf(){const s=st();
-return `<h1>Informe</h1><div class="card"><p style="margin-top:0">Genera un Excel con inventario, ventas, cuentas por cobrar y caja. Se abre el menú de compartir del iPhone: elige Correo, WhatsApp, AirDrop o Guardar en Archivos. Funciona sin internet; el envío sí necesita conexión.</p>
+function vInf(){const s=st(),d=S.lb?Math.floor((Date.now()-S.lb)/864e5):0;
+return `<h1>Informe</h1>
+<div class="card"><b>Excel para el computador</b><p class="sm">Se abre el menú de compartir del iPhone: elige Correo, WhatsApp, AirDrop o Guardar en Archivos. Generarlo funciona sin internet; el envío sí necesita conexión.</p>
 <div class="sm">${S.p.length} productos · ${S.s.length} ventas · ${s.pn} por cobrar</div><br><button class="big" onclick="xl()">Generar Excel</button></div>
-<div class="card sm">Los datos viven solo en este dispositivo. Genera el Excel con frecuencia como respaldo.</div>`}
+<div class="card"><b>Respaldo</b><p class="sm">Guarda todos tus datos en un archivo. En el menú de compartir elige Guardar en Archivos y luego iCloud Drive.</p>
+<div class="sm">Último respaldo: ${S.lb?dt(S.lb)+' (hace '+d+(d===1?' día':' días')+')':'nunca'}</div><br><button class="big" onclick="bk()">Hacer respaldo</button></div>
+${PR?`<div class="card" style="border-color:var(--rd)"><b>¿Reemplazar los datos actuales?</b><p class="sm">El archivo tiene ${PR.p.length} productos, ${PR.s.length} ventas y ${PR.k.length} cierres de caja. Lo que hay ahora en este dispositivo se reemplaza.</p><div class="row"><button class="d big" onclick="rOk()">Sí, restaurar</button><button class="s big" onclick="PR=null;render()">Cancelar</button></div></div>`:''}
+<div class="card"><b>Restaurar</b><p class="sm">Elige un archivo de respaldo guardado en Archivos o iCloud Drive. Sirve para recuperar datos o pasarlos a otro dispositivo.</p>
+<input id="rf" type="file" accept=".json,application/json" style="display:none" onchange="rPick(this)"><button class="s big" onclick="$('rf').click()">Elegir archivo de respaldo</button></div>`}
+let PR=null;
+async function bk(){const old=S.lb;S.lb=Date.now();
+const ok=await saveFile(new Blob([JSON.stringify({app:'apl-tienda',v:1,...S})],{type:'application/json'}),'APL-respaldo-'+new Date().toISOString().slice(0,10)+'.json').catch(()=>false);
+if(ok){save();toast('Respaldo guardado')}else S.lb=old;render()}
+function rPick(inp){const fl=inp.files[0];inp.value='';if(!fl)return;const r=new FileReader();
+r.onload=()=>{try{const o=JSON.parse(r.result);if(!o||!Array.isArray(o.p)||!Array.isArray(o.s))throw 0;
+PR={p:o.p,s:o.s,c:Array.isArray(o.c)?o.c:[],k:Array.isArray(o.k)?o.k:[],b:+o.b||0,lb:+o.lb||0};render();scrollTo(0,0)}catch(e){toast('Ese archivo no es un respaldo válido')}};r.readAsText(fl)}
+function rOk(){S=PR;PR=null;save();render();toast('Datos restaurados')}
+function rem(){if(!(S.p.length||S.s.length))return'';const d=S.lb?Math.floor((Date.now()-S.lb)/864e5):null;if(d!==null&&d<7)return'';
+return `<div class="card" style="background:var(--am2);border-color:var(--am)"><b style="color:var(--am)">${d===null?'Aún no has hecho un respaldo':'Hace '+d+' días sin respaldo'}</b><div class="sm" style="color:var(--am)">Guarda una copia para no perder tus datos.</div><div class="acts"><button class="s" onclick="T='inf';render()">Hacer respaldo</button></div></div>`}
 async function xl(){const s=st(),c=cash(),wb=[];
 const add=(n,r,w)=>wb.push([n,r,w]);
 add('Resumen',[['APL Accesorios'],['Informe generado',dt(Date.now())],['Inventario a costo',s.c],['Inventario a precio venta',s.v],['Ganancia potencial',s.v-s.c],['Total vendido',s.sold],['Ganancia ya cobrada',s.real],['Por cobrar',s.pend],['Efectivo esperado en caja',c.exp]],[28,18]);
@@ -158,8 +173,8 @@ const f=[['[Content_Types].xml',H+'<Types xmlns="http://schemas.openxmlformats.o
 sheets.forEach((s,i)=>f.push([`xl/worksheets/sheet${i+1}.xml`,sheetXml(s[1],s[2])]));
 return zip(f)}
 async function saveFile(blob,name){const file=new File([blob],name,{type:blob.type});
-if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:name});return}catch(e){if(e&&e.name==='AbortError')return}}
-const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}
+if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:name});return true}catch(e){if(e&&e.name==='AbortError')return false}}
+const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);return true}
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 
