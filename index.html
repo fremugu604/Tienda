@@ -79,20 +79,24 @@ return rem()+`<h1>Resumen</h1><div class="grid">
 <h2>Poco stock (2 o menos)</h2><div class="card">${low.length?low.map(p=>`<div class="it"><b>${esc(pLabel(p))}</b><span class="chip p">${p.stock} und</span></div>`).join(''):'<span class="sm">Todo en orden</span>'}</div>`}
 
 const pLabel=p=>[p.name,[p.brand,p.model].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
+const uqv=(k,fl)=>[...new Set(S.p.filter(fl||(()=>true)).map(p=>p[k]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es',{numeric:true}));
+const opts=(l,cur,ph)=>`<option value="">${ph}</option>`+l.map(v=>`<option value="${esc(v)}" ${v===cur?'selected':''}>${esc(v)}</option>`).join('')+'<option value="__new">+ Nuevo…</option>';
+const selNew=(id,ph,l,cur)=>`<select id="${id}" onchange="nw('${id}')">${opts(l,cur,ph)}</select><input id="${id}n" placeholder="Escribe el nuevo valor" style="display:none">`;
+const gv=id=>{const v=$(id).value;return v==='__new'?$(id+'n').value.trim():v};
+function nw(id){$(id+'n').style.display=$(id).value==='__new'?'block':'none';if(id==='pb')mRefresh()}
+function mRefresh(){const b=$('pb').value,l=b===''?uqv('model'):b==='__new'?[]:uqv('model',p=>p.brand===b);$('pm').innerHTML=opts(l,'','Modelo…');$('pmn').style.display='none'}
 function pList(){const q=(($('pq')||{}).value||'').toLowerCase().trim();
 const l=S.p.filter(p=>(F==='all'||p.cat===F)&&(!q||(pLabel(p)+' '+(p.cat||'')).toLowerCase().includes(q)));
 return l.length?l.map(p=>`<div class="it"><div><b>${esc(p.name)}</b><span class="sm">${esc(p.cat||'Sin categoría')}${p.brand||p.model?' · '+esc([p.brand,p.model].filter(Boolean).join(' ')):''}<br>Costo ${f(p.cost)} · Precio ${f(p.price)} · Ganancia ${f(p.price-p.cost)}</span>
 <div class="acts"><button class="s" onclick="E='${p.id}';render();scrollTo(0,0)">Editar</button><button class="d" onclick="pDel('${p.id}')">${D===p.id?'¿Seguro?':'Borrar'}</button></div></div>
 <span class="chip ${p.stock<=2?'p':''}">${p.stock} und</span></div>`).join(''):'<span class="sm">No hay productos aquí</span>'}
 function vInv(){const e=E&&S.p.find(p=>p.id===E)||{name:'',cat:F==='all'?'':F,brand:'',model:'',cost:'',price:'',stock:''};
-const uq=k=>[...new Set(S.p.map(p=>p[k]).filter(Boolean))].map(v=>`<option value="${esc(v)}">`).join('');
 const empty=F!=='all'&&!S.p.some(p=>p.cat===F);
 return `<h1>Inventario</h1><div class="card"><b>${E?'Editar producto':'Nuevo producto'}</b><br><br>
 <select id="pk" onchange="$('pnc').style.display=this.value==='__new'?'block':'none'">${S.cats.map(c=>`<option value="${esc(c)}" ${e.cat===c?'selected':''}>${esc(c)}</option>`).join('')}<option value="__new">+ Nueva categoría…</option></select>
 <input id="pnc" placeholder="Nombre de la nueva categoría" style="display:none">
-<input id="pn" placeholder="Producto (ej. Carcasa transparente)" value="${esc(e.name)}">
-<div class="row"><input id="pb" list="bl" placeholder="Celular (ej. iPhone)" value="${esc(e.brand)}"><input id="pm" list="ml" placeholder="Modelo (ej. 15 Pro)" value="${esc(e.model)}"></div>
-<datalist id="bl">${uq('brand')}</datalist><datalist id="ml">${uq('model')}</datalist>
+${selNew('pn','Producto…',uqv('name'),e.name)}
+<div class="row"><div style="min-width:0">${selNew('pb','Celular…',uqv('brand'),e.brand)}</div><div style="min-width:0">${selNew('pm','Modelo…',e.brand?uqv('model',p=>p.brand===e.brand):uqv('model'),e.model)}</div></div>
 <div class="row"><input id="pc" type="number" inputmode="decimal" placeholder="Costo" value="${e.cost}"><input id="pp" type="number" inputmode="decimal" placeholder="Precio venta" value="${e.price}"></div>
 <input id="ps" type="number" inputmode="numeric" placeholder="Cantidad en stock" value="${e.stock}">
 <div class="row"><button onclick="pSave()">${E?'Actualizar':'Agregar'}</button>${E?'<button class="s" onclick="E=null;render()">Cancelar</button>':''}</div></div>
@@ -101,12 +105,16 @@ return `<h1>Inventario</h1><div class="card"><b>${E?'Editar producto':'Nuevo pro
 ${empty?`<div class="acts" style="margin:0 0 8px"><button class="d" onclick="cDel()">Eliminar categoría vacía «${esc(F)}»</button></div>`:''}
 <input id="pq" placeholder="Buscar (ej. iPhone 15, transparente)" oninput="$('plist').innerHTML=pList()">
 <div class="card" id="plist">${pList()}</div>`}
-function pSave(){const n=$('pn').value.trim();if(!n)return toast('Escribe el producto');
+function pSave(){const cn=(k,v)=>{const x=S.p.find(p=>p[k]&&p[k].toLowerCase()===v.toLowerCase());return x?x[k]:v};
+const n0=gv('pn');if(!n0)return toast('Elige o escribe el producto');const n=cn('name',n0);
 let cat=$('pk').value;
 if(cat==='__new'){cat=$('pnc').value.trim();if(!cat)return toast('Escribe la categoría nueva');const ex=S.cats.find(c=>c.toLowerCase()===cat.toLowerCase());if(ex)cat=ex;else S.cats.push(cat)}
-const o={name:n,cat,brand:$('pb').value.trim(),model:$('pm').value.trim(),cost:num('pc'),price:num('pp'),stock:num('ps')};
-if(E){Object.assign(S.p.find(p=>p.id===E),o);E=null}else S.p.push({id:uid(),...o});
-if(cat)F=cat;save();render();toast('Guardado')}
+const o={name:n,cat,brand:cn('brand',gv('pb')),model:cn('model',gv('pm')),cost:num('pc'),price:num('pp'),stock:num('ps')};
+let msg='Guardado';
+if(E){Object.assign(S.p.find(p=>p.id===E),o);E=null}
+else{const d=S.p.find(p=>p.cat===o.cat&&p.name===o.name&&p.brand===o.brand&&p.model===o.model);
+if(d){d.stock+=o.stock;d.cost=o.cost;d.price=o.price;msg='Ya existía: se sumó al stock'}else S.p.push({id:uid(),...o})}
+if(cat)F=cat;save();render();toast(msg)}
 function cDel(){S.cats=S.cats.filter(c=>c!==F);F='all';save();render()}
 function pDel(id){if(D===id){S.p=S.p.filter(p=>p.id!==id);D=null;save()}else D=id;render()}
 
