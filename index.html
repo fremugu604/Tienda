@@ -37,6 +37,8 @@ nav button{flex:1;background:none;color:var(--mu);font-size:11px;padding:6px 2px
 nav button.on{color:var(--ac);font-weight:700}
 nav span{display:block;font-size:20px}
 .hd{display:flex;align-items:center;gap:12px;margin:2px 0 14px}.hd img{height:54px;width:auto}.hd b{display:block;font-size:17px}.hd span{font-size:12px;color:var(--mu)}
+
+.chs{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:6px}.ch{flex-shrink:0;white-space:nowrap;background:var(--card);color:var(--tx);border:1px solid var(--bd);padding:7px 13px;border-radius:99px;font-size:14px;font-weight:500}.ch.on{background:var(--ac);color:var(--bg);border-color:var(--ac)}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:90px;background:var(--tx);color:var(--bg);padding:10px 16px;border-radius:99px;font-size:14px;display:none;z-index:9}
 </style></head>
 <body>
@@ -44,7 +46,7 @@ nav span{display:block;font-size:20px}
 <div id="toast"></div>
 <nav id="nav"></nav>
 <script>
-let S={p:[],s:[],c:[],k:[],b:0},T='res',E=null,D=null,tt;
+let S={p:[],s:[],c:[],k:[],b:0,cats:['Carcasas','Micas']},T='res',E=null,D=null,F='all',tt;
 try{const r=localStorage.getItem('tienda_v1');if(r)S=Object.assign(S,JSON.parse(r))}catch(e){}
 const save=()=>{try{localStorage.setItem('tienda_v1',JSON.stringify(S))}catch(e){}};
 const $=id=>document.getElementById(id);
@@ -73,38 +75,59 @@ return rem()+`<h1>Resumen</h1><div class="grid">
 <div class="card"><div class="k">Ganancia ya cobrada</div><div class="v g">${f(s.real)}</div></div>
 <div class="card"><div class="k">Total vendido</div><div class="v">${f(s.sold)}</div></div>
 <div class="card"><div class="k">Por cobrar (${s.pn})</div><div class="v r">${f(s.pend)}</div></div></div>
-<h2>Poco stock (2 o menos)</h2><div class="card">${low.length?low.map(p=>`<div class="it"><b>${esc(p.name)}</b><span class="chip p">${p.stock} und</span></div>`).join(''):'<span class="sm">Todo en orden</span>'}</div>`}
+<h2>Por categoría</h2><div class="card">${S.cats.length?S.cats.map(c=>{const l=S.p.filter(p=>p.cat===c);return `<div class="it"><div><b>${esc(c)}</b><span class="sm">${l.reduce((a,p)=>a+p.stock,0)} und · a costo ${f(l.reduce((a,p)=>a+p.cost*p.stock,0))}</span></div></div>`}).join(''):'<span class="sm">Sin categorías</span>'}</div>
+<h2>Poco stock (2 o menos)</h2><div class="card">${low.length?low.map(p=>`<div class="it"><b>${esc(pLabel(p))}</b><span class="chip p">${p.stock} und</span></div>`).join(''):'<span class="sm">Todo en orden</span>'}</div>`}
 
-function vInv(){const e=E&&S.p.find(p=>p.id===E)||{name:'',cost:'',price:'',stock:''};
+const pLabel=p=>[p.name,[p.brand,p.model].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
+function pList(){const q=(($('pq')||{}).value||'').toLowerCase().trim();
+const l=S.p.filter(p=>(F==='all'||p.cat===F)&&(!q||(pLabel(p)+' '+(p.cat||'')).toLowerCase().includes(q)));
+return l.length?l.map(p=>`<div class="it"><div><b>${esc(p.name)}</b><span class="sm">${esc(p.cat||'Sin categoría')}${p.brand||p.model?' · '+esc([p.brand,p.model].filter(Boolean).join(' ')):''}<br>Costo ${f(p.cost)} · Precio ${f(p.price)} · Ganancia ${f(p.price-p.cost)}</span>
+<div class="acts"><button class="s" onclick="E='${p.id}';render();scrollTo(0,0)">Editar</button><button class="d" onclick="pDel('${p.id}')">${D===p.id?'¿Seguro?':'Borrar'}</button></div></div>
+<span class="chip ${p.stock<=2?'p':''}">${p.stock} und</span></div>`).join(''):'<span class="sm">No hay productos aquí</span>'}
+function vInv(){const e=E&&S.p.find(p=>p.id===E)||{name:'',cat:F==='all'?'':F,brand:'',model:'',cost:'',price:'',stock:''};
+const uq=k=>[...new Set(S.p.map(p=>p[k]).filter(Boolean))].map(v=>`<option value="${esc(v)}">`).join('');
+const empty=F!=='all'&&!S.p.some(p=>p.cat===F);
 return `<h1>Inventario</h1><div class="card"><b>${E?'Editar producto':'Nuevo producto'}</b><br><br>
-<input id="pn" placeholder="Nombre del producto" value="${esc(e.name)}">
+<select id="pk" onchange="$('pnc').style.display=this.value==='__new'?'block':'none'">${S.cats.map(c=>`<option value="${esc(c)}" ${e.cat===c?'selected':''}>${esc(c)}</option>`).join('')}<option value="__new">+ Nueva categoría…</option></select>
+<input id="pnc" placeholder="Nombre de la nueva categoría" style="display:none">
+<input id="pn" placeholder="Producto (ej. Carcasa transparente)" value="${esc(e.name)}">
+<div class="row"><input id="pb" list="bl" placeholder="Celular (ej. iPhone)" value="${esc(e.brand)}"><input id="pm" list="ml" placeholder="Modelo (ej. 15 Pro)" value="${esc(e.model)}"></div>
+<datalist id="bl">${uq('brand')}</datalist><datalist id="ml">${uq('model')}</datalist>
 <div class="row"><input id="pc" type="number" inputmode="decimal" placeholder="Costo" value="${e.cost}"><input id="pp" type="number" inputmode="decimal" placeholder="Precio venta" value="${e.price}"></div>
 <input id="ps" type="number" inputmode="numeric" placeholder="Cantidad en stock" value="${e.stock}">
 <div class="row"><button onclick="pSave()">${E?'Actualizar':'Agregar'}</button>${E?'<button class="s" onclick="E=null;render()">Cancelar</button>':''}</div></div>
-<h2>Productos (${S.p.length})</h2><div class="card">${S.p.length?S.p.map(p=>`<div class="it"><div><b>${esc(p.name)}</b><span class="sm">Costo ${f(p.cost)} · Precio ${f(p.price)}<br>Ganancia ${f(p.price-p.cost)} por und</span>
-<div class="acts"><button class="s" onclick="E='${p.id}';render();scrollTo(0,0)">Editar</button><button class="d" onclick="pDel('${p.id}')">${D===p.id?'¿Seguro?':'Borrar'}</button></div></div>
-<span class="chip ${p.stock<=2?'p':''}">${p.stock} und</span></div>`).join(''):'<span class="sm">Aún no hay productos</span>'}</div>`}
-function pSave(){const n=$('pn').value.trim();if(!n)return toast('Escribe el nombre');
-const o={name:n,cost:num('pc'),price:num('pp'),stock:num('ps')};
+<h2>Productos (${S.p.length})</h2>
+<div class="chs"><button class="ch ${F==='all'?'on':''}" onclick="F='all';render()">Todas</button>${S.cats.map((c,i)=>`<button class="ch ${F===c?'on':''}" onclick="F=S.cats[${i}];render()">${esc(c)}</button>`).join('')}</div>
+${empty?`<div class="acts" style="margin:0 0 8px"><button class="d" onclick="cDel()">Eliminar categoría vacía «${esc(F)}»</button></div>`:''}
+<input id="pq" placeholder="Buscar (ej. iPhone 15, transparente)" oninput="$('plist').innerHTML=pList()">
+<div class="card" id="plist">${pList()}</div>`}
+function pSave(){const n=$('pn').value.trim();if(!n)return toast('Escribe el producto');
+let cat=$('pk').value;
+if(cat==='__new'){cat=$('pnc').value.trim();if(!cat)return toast('Escribe la categoría nueva');const ex=S.cats.find(c=>c.toLowerCase()===cat.toLowerCase());if(ex)cat=ex;else S.cats.push(cat)}
+const o={name:n,cat,brand:$('pb').value.trim(),model:$('pm').value.trim(),cost:num('pc'),price:num('pp'),stock:num('ps')};
 if(E){Object.assign(S.p.find(p=>p.id===E),o);E=null}else S.p.push({id:uid(),...o});
-save();render();toast('Guardado')}
+if(cat)F=cat;save();render();toast('Guardado')}
+function cDel(){S.cats=S.cats.filter(c=>c!==F);F='all';save();render()}
 function pDel(id){if(D===id){S.p=S.p.filter(p=>p.id!==id);D=null;save()}else D=id;render()}
 
 function sRow(x){return `<div class="it"><div><b>${esc(x.name)} × ${x.qty}</b><span class="sm">${esc(x.client)} · ${dt(x.ts)}</span>
 ${x.pay?'':`<div class="acts"><button class="s" onclick="sPay('${x.id}','efectivo')">Cobró efectivo</button><button class="s" onclick="sPay('${x.id}','transferencia')">Cobró transf.</button></div>`}</div>
 <div style="text-align:right"><b>${f(x.price*x.qty)}</b><span class="chip ${x.pay?'':'p'}">${x.pay?'Pagó '+x.pay:'Debe'}</span></div></div>`}
 function vVen(){const av=S.p.filter(p=>p.stock>0),pend=S.s.filter(x=>!x.pay).reverse(),done=S.s.filter(x=>x.pay).reverse().slice(0,30);
-return `<h1>Ventas</h1><div class="card">${av.length?`<select id="sp" onchange="$('sx').value=S.p.find(p=>p.id===this.value).price">${av.map(p=>`<option value="${p.id}">${esc(p.name)} (${p.stock})</option>`).join('')}</select>
+return `<h1>Ventas</h1><div class="card">${av.length?`<input id="sf" placeholder="Buscar producto (ej. iPhone 15)" oninput="sFilter()"><select id="sp" onchange="selP(this.value)">${av.map(p=>`<option value="${p.id}">${esc(pLabel(p))} (${p.stock})</option>`).join('')}</select>
 <div class="row"><input id="sq" type="number" inputmode="numeric" value="1" placeholder="Cant."><input id="sx" type="number" inputmode="decimal" value="${av[0].price}" placeholder="Precio"></div>
 <input id="sc" placeholder="¿A quién se lo entregaste?">
 <select id="sy"><option value="efectivo">Pagó en efectivo</option><option value="transferencia">Pagó por transferencia</option><option value="">No ha pagado</option></select>
 <button class="big" onclick="sell()">Registrar venta</button>`:'<span class="sm">Agrega productos con stock en Inventario</span>'}</div>
 <h2>Por cobrar (${pend.length})</h2><div class="card">${pend.length?pend.map(sRow).join(''):'<span class="sm">Nadie te debe</span>'}</div>
 <h2>Últimas ventas pagadas</h2><div class="card">${done.length?done.map(sRow).join(''):'<span class="sm">Sin ventas aún</span>'}</div>`}
+function selP(v){const p=S.p.find(p=>p.id===v);$('sx').value=p?p.price:''}
+function sFilter(){const q=$('sf').value.toLowerCase().trim(),l=S.p.filter(p=>p.stock>0&&(pLabel(p)+' '+(p.cat||'')).toLowerCase().includes(q));
+$('sp').innerHTML=l.map(p=>`<option value="${p.id}">${esc(pLabel(p))} (${p.stock})</option>`).join('')||'<option value="">Sin resultados</option>';selP(l[0]?l[0].id:'')}
 function sell(){const p=S.p.find(p=>p.id===$('sp').value);if(!p)return toast('Elige un producto');
 const q=num('sq'),pr=num('sx');if(q<=0)return toast('Cantidad inválida');if(q>p.stock)return toast('Solo quedan '+p.stock);
 const pay=$('sy').value||null,now=Date.now();
-S.s.push({id:uid(),ts:now,pid:p.id,name:p.name,qty:q,cost:p.cost,price:pr,client:$('sc').value.trim()||'Sin nombre',pay,payTs:pay?now:0});
+S.s.push({id:uid(),ts:now,pid:p.id,name:pLabel(p),qty:q,cost:p.cost,price:pr,client:$('sc').value.trim()||'Sin nombre',pay,payTs:pay?now:0});
 p.stock-=q;save();render();toast('Venta registrada')}
 function sPay(id,m){const x=S.s.find(x=>x.id===id);x.pay=m;x.payTs=Date.now();save();render();toast('Cobro registrado')}
 
@@ -136,14 +159,14 @@ const ok=await saveFile(new Blob([JSON.stringify({app:'apl-tienda',v:1,...S})],{
 if(ok){save();toast('Respaldo guardado')}else S.lb=old;render()}
 function rPick(inp){const fl=inp.files[0];inp.value='';if(!fl)return;const r=new FileReader();
 r.onload=()=>{try{const o=JSON.parse(r.result);if(!o||!Array.isArray(o.p)||!Array.isArray(o.s))throw 0;
-PR={p:o.p,s:o.s,c:Array.isArray(o.c)?o.c:[],k:Array.isArray(o.k)?o.k:[],b:+o.b||0,lb:+o.lb||0};render();scrollTo(0,0)}catch(e){toast('Ese archivo no es un respaldo válido')}};r.readAsText(fl)}
+PR={p:o.p,s:o.s,cats:Array.isArray(o.cats)?o.cats:['Carcasas','Micas'],c:Array.isArray(o.c)?o.c:[],k:Array.isArray(o.k)?o.k:[],b:+o.b||0,lb:+o.lb||0};render();scrollTo(0,0)}catch(e){toast('Ese archivo no es un respaldo válido')}};r.readAsText(fl)}
 function rOk(){S=PR;PR=null;save();render();toast('Datos restaurados')}
 function rem(){if(!(S.p.length||S.s.length))return'';const d=S.lb?Math.floor((Date.now()-S.lb)/864e5):null;if(d!==null&&d<7)return'';
 return `<div class="card" style="background:var(--am2);border-color:var(--am)"><b style="color:var(--am)">${d===null?'Aún no has hecho un respaldo':'Hace '+d+' días sin respaldo'}</b><div class="sm" style="color:var(--am)">Guarda una copia para no perder tus datos.</div><div class="acts"><button class="s" onclick="T='inf';render()">Hacer respaldo</button></div></div>`}
 async function xl(){const s=st(),c=cash(),wb=[];
 const add=(n,r,w)=>wb.push([n,r,w]);
 add('Resumen',[['APL Accesorios'],['Informe generado',dt(Date.now())],['Inventario a costo',s.c],['Inventario a precio venta',s.v],['Ganancia potencial',s.v-s.c],['Total vendido',s.sold],['Ganancia ya cobrada',s.real],['Por cobrar',s.pend],['Efectivo esperado en caja',c.exp]],[28,18]);
-add('Inventario',[['Producto','Costo','Precio','Stock','Ganancia por und','Valor a costo','Valor a venta'],...S.p.map(p=>[p.name,p.cost,p.price,p.stock,p.price-p.cost,p.cost*p.stock,p.price*p.stock])],[26,12,12,8,16,14,14]);
+add('Inventario',[['Categoría','Producto','Celular','Modelo','Costo','Precio','Stock','Ganancia por und','Valor a costo','Valor a venta'],...S.p.map(p=>[p.cat||'',p.name,p.brand||'',p.model||'',p.cost,p.price,p.stock,p.price-p.cost,p.cost*p.stock,p.price*p.stock])],[14,26,14,16,12,12,8,16,14,14]);
 const sr=x=>[dt(x.ts),x.name,x.qty,x.client,x.cost,x.price,x.price*x.qty,(x.price-x.cost)*x.qty,x.pay||'',x.pay?'Pagado':'Debe'];
 const sh=['Fecha','Producto','Cant.','Cliente','Costo und','Precio und','Total','Ganancia','Medio de pago','Estado'],sw=[16,24,7,20,11,11,12,12,14,10];
 add('Ventas',[sh,...S.s.map(sr)],sw);
