@@ -77,10 +77,10 @@ S.p.forEach(p=>{c+=p.cost*p.stock;v+=p.price*p.stock});
 S.s.forEach(x=>{const t=Va(x),e=Ev(x);sold+=t;if(x.pay)real+=t-x.cost*e;else if(e>0){pend+=t;pn++}});
 return{c,v,sold,real,pend,pn}}
 function cash(){const l=S.k[S.k.length-1],since=l?l.ts:0,base=l?l.counted:S.b;
-let cs=0,rf=0,ing=0,egr=0;
-S.s.forEach(x=>cfs(x).forEach(c=>{if(c.m==='efectivo'&&c.ts>since){if(c.amt>=0)cs+=c.amt;else rf-=c.amt}}));
+let cs=0,rf=0,tr=0,ing=0,egr=0;
+S.s.forEach(x=>cfs(x).forEach(c=>{if(c.ts>since){if(c.m==='efectivo'){if(c.amt>=0)cs+=c.amt;else rf-=c.amt}else tr+=c.amt}}));
 S.c.forEach(m=>{if(m.ts>since){if(m.type==='ingreso')ing+=m.amt;else egr+=m.amt}});
-return{since,base,cs,rf,ing,egr,exp:base+cs-rf+ing-egr,first:!l}}
+return{since,base,cs,rf,tr,ing,egr,exp:base+cs-rf+ing-egr,first:!l}}
 
 function vRes(){const s=st(),low=S.p.filter(p=>p.stock<=2);
 return rem()+`<h1>Resumen</h1><div class="grid">
@@ -170,14 +170,14 @@ function sRet(id){const x=S.s.find(x=>x.id===id),e=Ev(x),V=Va(x),q=num('rq');
 if(q<=0||q>e)return toast('Cantidad inválida (máximo '+e+')');
 const val=q===e?V:Math.round(V/e*q),m=x.pay?$('rm').value:'',inv=$('ri').value==='1',now=Date.now();
 mod(x);x.r=x.r||[];x.r.push({ts:now,qty:q,val,amt:x.pay?val:0,m,inv});
-if(x.pay)x.cf.push({ts:now,m,amt:-val});
+if(x.pay)x.cf.push({ts:now,m,amt:-val,t:'ret'});
 let t='Devolución registrada';
 if(inv){const p=S.p.find(p=>p.id===x.pid);if(p)p.stock+=q;else t='Devuelta; el producto ya no está en inventario'}
 SEL=null;save();render();toast(t)}
 function sAdj(id){const x=S.s.find(x=>x.id===id),V=Math.round(Va(x)),n=Math.round(num('av'));
 if(n<V)return toast('No se puede bajar el valor');if(n===V)return toast('El valor no cambió');
 const d=n-V,now=Date.now();mod(x);x.adj=x.adj||[];x.adj.push({ts:now,amt:d});
-if(x.pay)x.cf.push({ts:now,m:x.pay,amt:d});
+if(x.pay)x.cf.push({ts:now,m:x.pay,amt:d,t:'adj'});
 SEL=null;save();render();toast('Valor ajustado a '+f(n))}
 function vVen(){const av=S.p.filter(p=>p.stock>0),pend=S.s.filter(x=>!x.pay&&Ev(x)>0).reverse(),done=S.s.filter(x=>x.pay||Ev(x)===0).reverse().slice(0,30);
 return `<h1>Ventas</h1><div class="card">${av.length?`<input id="sf" placeholder="Buscar producto (ej. iPhone 15)" oninput="sFilter()"><select id="sp" onchange="selP(this.value)">${av.map(p=>`<option value="${p.id}">${esc(pLabel(p))} (${p.stock})</option>`).join('')}</select>
@@ -197,14 +197,19 @@ S.s.push({id:uid(),ts:now,pid:p.id,name:pLabel(p),qty:q,cost:p.cost,price:pr,cli
 p.stock-=q;save();render();toast('Venta registrada')}
 function sPay(id,m){const x=S.s.find(x=>x.id===id);mod(x);const now=Date.now();x.pay=m;x.payTs=now;x.cf.push({ts:now,m,amt:Va(x)});save();render();toast('Cobro registrado')}
 
-function vCaja(){const c=cash(),mv=S.c.slice(-6).reverse(),ks=S.k.slice(-5).reverse();
+function movs(){const a=[];
+S.c.forEach(m=>a.push({ts:m.ts,t:m.note||(m.type==='egreso'?'Egreso':'Ingreso'),amt:m.type==='egreso'?-m.amt:m.amt,m:'efectivo'}));
+S.s.forEach(x=>cfs(x).forEach(c=>a.push({ts:c.ts,t:(c.amt<0||c.t==='ret'?'Devolución':c.t==='adj'?'Ajuste de venta':'Venta')+' · '+x.name+(x.client?' · '+x.client:''),amt:c.amt,m:c.m})));
+return a.sort((p,q)=>q.ts-p.ts)}
+function vCaja(){const c=cash(),mv=movs().slice(0,15),ks=S.k.slice(-5).reverse();
 return `<h1>Caja</h1><div class="card"><div class="k">Efectivo que deberías tener</div><div class="v g">${f(c.exp)}</div>
-<div class="sm">Base ${f(c.base)} + ventas en efectivo ${f(c.cs)} + ingresos ${f(c.ing)} − egresos ${f(c.egr)}${c.rf?' − devoluciones '+f(c.rf):''}</div></div>
+<div class="sm">Base ${f(c.base)} + ventas en efectivo ${f(c.cs)} + ingresos ${f(c.ing)} − egresos ${f(c.egr)}${c.rf?' − devoluciones '+f(c.rf):''}</div>
+<div class="sm" style="margin-top:6px">Transferencias recibidas desde el último cierre: <b>${f(c.tr)}</b> (no cuentan en el efectivo)</div></div>
 ${c.first?`<div class="card"><div class="k">Efectivo inicial (solo la primera vez)</div><input id="cb" type="number" inputmode="decimal" value="${S.b||''}" onchange="S.b=num('cb');save();render()"></div>`:''}
 <div class="card"><b>Conciliar</b><br><br><input id="cn" type="number" inputmode="decimal" placeholder="Efectivo que cuento en mano"><button class="big" onclick="close_()">Cerrar caja y comparar</button></div>
 <div class="card"><b>Otro movimiento</b><br><br><div class="row"><select id="mt"><option value="egreso">Egreso (gasto)</option><option value="ingreso">Ingreso</option></select><input id="ma" type="number" inputmode="decimal" placeholder="Monto"></div>
 <input id="mn" placeholder="Nota (ej. compra de bolsas)"><button class="big" onclick="mAdd()">Agregar</button></div>
-<h2>Movimientos recientes</h2><div class="card">${mv.length?mv.map(m=>`<div class="it"><div><b>${esc(m.note||m.type)}</b><span class="sm">${dt(m.ts)}</span></div><b class="${m.type==='egreso'?'r':'g'}">${m.type==='egreso'?'−':'+'}${f(m.amt)}</b></div>`).join(''):'<span class="sm">Sin movimientos</span>'}</div>
+<h2>Movimientos recientes</h2><div class="card">${mv.length?mv.map(m=>`<div class="it"><div style="flex:1;min-width:0"><b>${esc(m.t)}</b><span class="sm">${dt(m.ts)} · <span class="chip ${m.m==='efectivo'?'':'p'}">${m.m==='efectivo'?'Efectivo':'Transferencia'}</span></span></div><b class="${m.amt<0?'r':'g'}" style="white-space:nowrap">${m.amt<0?'−':'+'}${f(Math.abs(m.amt))}</b></div>`).join(''):'<span class="sm">Sin movimientos</span>'}</div>
 <h2>Cierres anteriores</h2><div class="card">${ks.length?ks.map(k=>`<div class="it"><div><b>${dt(k.ts)}</b><span class="sm">Esperado ${f(k.exp)} · Contado ${f(k.counted)}</span></div><span class="chip ${k.diff?'p':''}">${k.diff===0?'Cuadra':(k.diff>0?'Sobra ':'Falta ')+f(Math.abs(k.diff))}</span></div>`).join(''):'<span class="sm">Aún no has cerrado caja</span>'}</div>`}
 function close_(){if(!$('cn').value)return toast('Escribe el efectivo contado');const c=cash(),n=num('cn');
 S.k.push({ts:Date.now(),exp:c.exp,counted:n,diff:n-c.exp});save();render();toast(n===c.exp?'La caja cuadra':'Hay diferencia: '+f(n-c.exp))}
