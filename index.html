@@ -202,9 +202,9 @@ S.c.forEach(m=>a.push({ts:m.ts,t:m.note||(m.type==='egreso'?'Egreso':'Ingreso'),
 S.s.forEach(x=>cfs(x).forEach(c=>a.push({ts:c.ts,t:(c.amt<0||c.t==='ret'?'Devolución':c.t==='adj'?'Ajuste de venta':'Venta')+' · '+x.name+(x.client?' · '+x.client:''),amt:c.amt,m:c.m})));
 return a.sort((p,q)=>q.ts-p.ts)}
 function vCaja(){const c=cash(),mv=movs().slice(0,15),ks=S.k.slice(-5).reverse();
-return `<h1>Caja</h1><div class="card"><div class="k">Efectivo que deberías tener</div><div class="v g">${f(c.exp)}</div>
+return `<h1>Caja</h1><div class="card"><div class="grid" style="gap:12px;margin-bottom:6px"><div><div class="k">Efectivo que deberías tener</div><div class="v g">${f(c.exp)}</div></div><div><div class="k">Total en dinero (efectivo + transferencias)</div><div class="v g">${f(c.exp+c.tr)}</div></div></div>
 <div class="sm">Base ${f(c.base)} + ventas en efectivo ${f(c.cs)} + ingresos ${f(c.ing)} − egresos ${f(c.egr)}${c.rf?' − devoluciones '+f(c.rf):''}</div>
-<div class="sm" style="margin-top:6px">Transferencias recibidas desde el último cierre: <b>${f(c.tr)}</b> (no cuentan en el efectivo)</div></div>
+<div class="sm" style="margin-top:6px">Transferencias recibidas desde el último cierre: <b>${f(c.tr)}</b> (no cuentan en el efectivo, sí en el total)</div></div>
 ${c.first?`<div class="card"><div class="k">Efectivo inicial (solo la primera vez)</div><input id="cb" type="number" inputmode="decimal" value="${S.b||''}" onchange="S.b=num('cb');save();render()"></div>`:''}
 <div class="card"><b>Conciliar</b><br><br><input id="cn" type="number" inputmode="decimal" placeholder="Efectivo que cuento en mano"><button class="big" onclick="close_()">Cerrar caja y comparar</button></div>
 <div class="card"><b>Otro movimiento</b><br><br><div class="row"><select id="mt"><option value="egreso">Egreso (gasto)</option><option value="ingreso">Ingreso</option></select><input id="ma" type="number" inputmode="decimal" placeholder="Monto"></div>
